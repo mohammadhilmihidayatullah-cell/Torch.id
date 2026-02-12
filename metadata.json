@@ -1,0 +1,7 @@
+{
+  "name": "Torch Adventure Map",
+  "description": "An interactive digital map for Torch bag users to track their travels, maintain streaks, and compete in global leaderboards.",
+  "requestFramePermissions": [
+    "geolocation"
+  ]
+}
