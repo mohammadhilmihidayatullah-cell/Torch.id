@@ -1,292 +1,397 @@
 
-import React, { useState, useEffect } from 'react';
-import { UserStats, Marker, UserCategory } from './types';
-import Onboarding from './components/Onboarding';
-import MapComponent from './components/MapComponent';
-import { MOCK_LEADERBOARD, PRODUCT_COLLECTIONS } from './constants';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import L from 'leaflet';
 import { 
-  Trophy, Flame, Award, Map as MapIcon, 
-  ChevronRight, Users, Settings, MapPin, Navigation, 
-  ShoppingBag, ExternalLink, X, Sparkles, MessageSquare
+  Trophy, Flame, Map as MapIcon, ShoppingBag, 
+  X, Sparkles, MessageSquare, ChevronRight, LocateFixed,
+  Plane, GraduationCap, Moon, Briefcase, Coffee
 } from 'lucide-react';
 
-const MOCK_CITIES = ['Jakarta', 'Bandung', 'Yogyakarta', 'Surabaya', 'Bali', 'Medan', 'Makassar', 'Semarang', 'Tokyo', 'Sydney', 'Paris', 'London'];
+// --- TYPES ---
+enum UserCategory {
+  TRAVELING = 'Traveling',
+  BACK_TO_SCHOOL = 'Back to School',
+  UMRAH_IBADAH = 'Umrah & Ibadah',
+  KANTORAN = 'Kantoran',
+  HANGOUT = 'Hangout'
+}
 
+interface MarkerData {
+  id: string;
+  lat: number;
+  lng: number;
+  userName: string;
+  category: UserCategory;
+}
+
+interface UserData {
+  name: string;
+  email: string;
+  category: UserCategory;
+  totalKm: number;
+  streak: number;
+  currentProduct: {
+    name: string;
+    image: string;
+  };
+}
+
+// --- CONSTANTS ---
+const torchLogo = "https://torch.id/cdn/shop/files/Logo_Torch_Primary_Black_150x.png?v=1614300445";
+const mascotUrl = "https://images.squarespace-cdn.com/content/v1/5b329486360810168343e06a/1592398687498-Y8U1S7T8U1S7T8U1S7T8/Mascot_Final_01.png";
+
+const CATEGORY_META: Record<UserCategory, { icon: React.ReactNode, desc: string }> = {
+  [UserCategory.TRAVELING]: { icon: <Plane size={24} />, desc: "Petualang Sejati" },
+  [UserCategory.BACK_TO_SCHOOL]: { icon: <GraduationCap size={24} />, desc: "Pelajar Aktif" },
+  [UserCategory.UMRAH_IBADAH]: { icon: <Moon size={24} />, desc: "Ibadah Nyaman" },
+  [UserCategory.KANTORAN]: { icon: <Briefcase size={24} />, desc: "Profesional Muda" },
+  [UserCategory.HANGOUT]: { icon: <Coffee size={24} />, desc: "Anak Nongkrong" },
+};
+
+const MOCK_LEADERBOARD = [
+  { name: 'Adi Pratama', category: UserCategory.TRAVELING, km: 1240 },
+  { name: 'Siti Aminah', category: UserCategory.KANTORAN, km: 850 },
+  { name: 'Budi Santoso', category: UserCategory.HANGOUT, km: 420 },
+];
+
+// --- COMPONENT: ONBOARDING ---
+const OnboardingView = ({ onComplete }: { onComplete: (u: UserData) => void }) => {
+  const [step, setStep] = useState(1);
+  const [email, setEmail] = useState('');
+  const [name, setName] = useState('');
+  const [category, setCategory] = useState<UserCategory | null>(null);
+
+  const handleFinish = () => {
+    if (category) {
+      onComplete({
+        name, email, category,
+        totalKm: 0, streak: 1,
+        currentProduct: {
+          name: 'Kashiwa Backpack 19L',
+          image: 'https://torch.id/cdn/shop/products/Kashiwa_Grey_1_800x.jpg?v=1655716186'
+        }
+      });
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-white z-[9999] flex flex-col items-center justify-center p-6 text-center overflow-y-auto">
+      <div className="max-w-sm w-full space-y-8 py-10">
+        <img src={torchLogo} alt="Torch" className="h-10 mx-auto brightness-0" />
+        
+        {step < 3 && (
+          <div className="w-32 h-32 bg-teal-50 rounded-full mx-auto flex items-center justify-center border-4 border-white shadow-xl">
+            <img src={mascotUrl} className="h-24 animate-bounce" alt="Buddy" />
+          </div>
+        )}
+
+        <div className="space-y-2">
+          <h1 className="text-3xl font-black text-gray-900 tracking-tight">
+            {step === 1 ? 'Halo Sobat!' : step === 2 ? 'Kenalan Yuk!' : 'Pilih Karakter'}
+          </h1>
+          <p className="text-gray-400 font-medium">Siap untuk petualangan baru hari ini?</p>
+        </div>
+
+        <div className="space-y-4">
+          {step === 1 && (
+            <input 
+              type="email" placeholder="Email kamu..." 
+              className="w-full p-5 rounded-3xl border-2 border-gray-100 focus:border-[#006F8E] outline-none font-bold text-lg text-center"
+              value={email} onChange={e => setEmail(e.target.value)}
+            />
+          )}
+          {step === 2 && (
+            <input 
+              type="text" placeholder="Nama lengkap..." 
+              className="w-full p-5 rounded-3xl border-2 border-gray-100 focus:border-[#006F8E] outline-none font-bold text-lg text-center"
+              value={name} onChange={e => setName(e.target.value)}
+            />
+          )}
+          {step === 3 && (
+            <div className="grid grid-cols-1 gap-3">
+              {(Object.keys(CATEGORY_META) as UserCategory[]).map(cat => (
+                <button 
+                  key={cat} onClick={() => setCategory(cat)}
+                  className={`p-4 rounded-2xl border-2 flex items-center gap-4 transition-all text-left ${category === cat ? 'border-[#006F8E] bg-teal-50 shadow-md' : 'border-gray-50 bg-white'}`}
+                >
+                  <div className={`p-3 rounded-xl ${category === cat ? 'bg-[#006F8E] text-white' : 'bg-gray-100 text-gray-400'}`}>
+                    {CATEGORY_META[cat].icon}
+                  </div>
+                  <div>
+                    <p className={`font-black leading-none ${category === cat ? 'text-[#006F8E]' : 'text-gray-700'}`}>{cat}</p>
+                    <p className="text-[10px] text-gray-400 font-bold uppercase mt-1">{CATEGORY_META[cat].desc}</p>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <button 
+          onClick={() => step < 3 ? setStep(step + 1) : handleFinish()}
+          disabled={(step === 1 && !email.includes('@')) || (step === 2 && !name) || (step === 3 && !category)}
+          className="w-full py-5 bg-[#006F8E] text-white font-black rounded-3xl shadow-xl disabled:opacity-30 uppercase tracking-widest active:scale-95 transition-all"
+        >
+          {step === 3 ? 'Ayo Mulai!' : 'Lanjut'}
+        </button>
+      </div>
+    </div>
+  );
+};
+
+// --- COMPONENT: APP ---
 const App: React.FC = () => {
-  const [userStats, setUserStats] = useState<UserStats | null>(null);
-  const [markers, setMarkers] = useState<Marker[]>([]);
-  const [isGearDrawerOpen, setIsGearDrawerOpen] = useState(false);
-  const [buddyMessage, setBuddyMessage] = useState("Halo! Sudah siap menjelajah hari ini?");
+  const [user, setUser] = useState<UserData | null>(null);
+  const [markers, setMarkers] = useState<MarkerData[]>([]);
+  const [isStoreOpen, setIsStoreOpen] = useState(false);
+  
+  const mapContainer = useRef<HTMLDivElement>(null);
+  const mapInstance = useRef<L.Map | null>(null);
+  const layerInstance = useRef<L.LayerGroup | null>(null);
 
+  // Persistence
   useEffect(() => {
-    const savedUser = localStorage.getItem('torch_user');
-    const savedMarkers = localStorage.getItem('torch_markers');
-    if (savedUser) setUserStats(JSON.parse(savedUser));
-    if (savedMarkers) setMarkers(JSON.parse(savedMarkers));
+    const saved = localStorage.getItem('torch_vfinal');
+    if (saved) {
+      try {
+        const d = JSON.parse(saved);
+        if (d.user) setUser(d.user);
+        if (d.markers) setMarkers(d.markers);
+      } catch (e) { console.error("Restore failed", e); }
+    }
   }, []);
 
   useEffect(() => {
-    if (userStats) {
-      localStorage.setItem('torch_user', JSON.stringify(userStats));
-      if (userStats.streak >= 5) {
-        setBuddyMessage("Wah, 5 hari berturut-turut! Kamu hebat sekali!");
-      } else if (userStats.totalKm > 100) {
-        setBuddyMessage("Sudah lebih dari 100KM! Terus melangkah bersama Torch!");
-      }
+    if (user) {
+      localStorage.setItem('torch_vfinal', JSON.stringify({ user, markers }));
     }
-    if (markers.length > 0) localStorage.setItem('torch_markers', JSON.stringify(markers));
-  }, [userStats, markers]);
+  }, [user, markers]);
 
-  const handleDropMarker = (lat: number, lng: number) => {
-    if (!userStats) return;
+  // Map Initialization
+  useEffect(() => {
+    if (!user || !mapContainer.current || mapInstance.current) return;
 
-    const randomCity = MOCK_CITIES[Math.floor(Math.random() * MOCK_CITIES.length)];
+    mapInstance.current = L.map(mapContainer.current, {
+      zoomControl: false, attributionControl: false
+    }).setView([-2.5489, 118.0149], 5);
 
-    const newMarker: Marker = {
-      id: Math.random().toString(36).substr(2, 9),
-      lat,
-      lng,
-      userName: userStats.name,
-      category: userStats.category,
-      timestamp: Date.now(),
-      cityName: randomCity
-    };
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png').addTo(mapInstance.current);
+    layerInstance.current = L.layerGroup().addTo(mapInstance.current);
 
-    setMarkers(prev => [...prev, newMarker]);
+    mapInstance.current.on('click', (e: any) => dropTorch(e.latlng.lat, e.latlng.lng));
 
-    setUserStats(prev => {
-      if (!prev) return null;
-      const threeDaysMs = 3 * 24 * 60 * 60 * 1000;
-      const isStreakValid = (Date.now() - prev.lastUpdate) < threeDaysMs;
-      
-      const newCities = [...prev.visitedCities];
-      if (!newCities.includes(randomCity)) {
-        newCities.push(randomCity);
+    return () => {
+      if (mapInstance.current) {
+        mapInstance.current.remove();
+        mapInstance.current = null;
       }
+    };
+  }, [user]);
 
-      setBuddyMessage(`Hore! Baru saja menandai lokasi di ${randomCity}. Keren banget!`);
+  // Marker Sync
+  useEffect(() => {
+    if (!layerInstance.current) return;
+    layerInstance.current.clearLayers();
 
-      return {
-        ...prev,
-        totalKm: prev.totalKm + Math.floor(Math.random() * 50) + 10,
-        streak: isStreakValid ? prev.streak + 1 : 1,
-        lastUpdate: Date.now(),
-        visitedCities: newCities
-      };
+    markers.forEach(m => {
+      const icon = L.divIcon({
+        className: 'custom-div-icon',
+        html: `
+          <div class="flex flex-col items-center">
+            <div class="bg-black text-white px-2 py-0.5 rounded text-[8px] font-bold mb-1 shadow-lg">${m.userName}</div>
+            <div class="w-8 h-8 bg-[#006F8E] rounded-full border-2 border-white shadow-xl flex items-center justify-center text-white">📍</div>
+          </div>
+        `,
+        iconSize: [40, 40],
+        iconAnchor: [20, 40]
+      });
+      L.marker([m.lat, m.lng], { icon }).addTo(layerInstance.current!);
     });
+  }, [markers]);
+
+  const dropTorch = (lat: number, lng: number) => {
+    if (!user) return;
+    const m: MarkerData = {
+      id: Math.random().toString(36).substr(2, 9),
+      lat, lng, userName: user.name, category: user.category
+    };
+    setMarkers(prev => [...prev, m]);
+    setUser(prev => prev ? ({ ...prev, totalKm: prev.totalKm + 15, streak: prev.streak + 1 }) : null);
   };
 
-  if (!userStats) {
-    return <Onboarding onComplete={setUserStats} />;
-  }
-
-  const allUsers = [...MOCK_LEADERBOARD];
-  const currentUserIndex = allUsers.findIndex(u => u.name === userStats.name);
-  if (currentUserIndex === -1) {
-    allUsers.push({ rank: 0, name: userStats.name, category: userStats.category, km: userStats.totalKm, streak: userStats.streak });
-  } else {
-    allUsers[currentUserIndex] = { ...allUsers[currentUserIndex], km: userStats.totalKm, streak: userStats.streak };
-  }
-  const sortedLeaderboard = allUsers.sort((a, b) => b.km - a.km).map((u, i) => ({ ...u, rank: i + 1 }));
+  if (!user) return <OnboardingView onComplete={setUser} />;
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col items-center">
-      <div className="w-full max-w-[1600px] bg-white shadow-2xl min-h-screen flex flex-col relative overflow-hidden">
+    <div className="min-h-screen bg-white flex flex-col font-sans text-gray-900">
+      {/* Map Header */}
+      <div className="relative h-[55vh] w-full bg-gray-100 shadow-inner overflow-hidden">
+        <div ref={mapContainer} className="h-full w-full z-0" />
         
-        {/* Full Width Map Area */}
-        <div className="relative h-[65vh] w-full">
-          <MapComponent 
-            markers={markers} 
-            onDrop={handleDropMarker} 
-            userCategory={userStats.category}
-          />
-
-          {/* Floating Gear Access Button */}
+        {/* Navigation Overlays */}
+        <div className="absolute top-6 left-6 right-6 z-[1000] flex justify-between pointer-events-none">
+          <div className="bg-white/95 backdrop-blur-md p-3 rounded-2xl shadow-xl flex items-center gap-3 pointer-events-auto border border-gray-100">
+            <img src={torchLogo} alt="Logo" className="h-4 brightness-0" />
+            <div className="w-[1px] h-3 bg-gray-200" />
+            <span className="text-[10px] font-black uppercase text-gray-400 tracking-tighter">Adventure Map</span>
+          </div>
           <button 
-            onClick={() => setIsGearDrawerOpen(true)}
-            className="absolute top-24 right-6 z-[2000] bg-[#006F8E] text-white p-6 rounded-[32px] shadow-2xl hover:bg-[#005a75] transition-all flex items-center gap-4 group ring-4 ring-white"
+            onClick={() => mapInstance.current?.locate({setView: true, maxZoom: 12})}
+            className="bg-white p-4 rounded-2xl shadow-xl text-[#006F8E] active:scale-90 transition-transform pointer-events-auto"
           >
-            <ShoppingBag size={28} />
-            <span className="max-w-0 overflow-hidden group-hover:max-w-xs transition-all duration-500 font-black whitespace-nowrap uppercase tracking-[0.2em] text-sm">Gunakan Gear</span>
+            <LocateFixed size={20} />
           </button>
         </div>
 
-        {/* Sliding Shop Drawer */}
-        <div className={`fixed inset-0 z-[5000] transition-opacity duration-300 ${isGearDrawerOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
-          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setIsGearDrawerOpen(false)}></div>
-          <div className={`absolute top-0 right-0 h-full w-full max-w-md bg-white shadow-2xl transition-transform duration-500 transform ${isGearDrawerOpen ? 'translate-x-0' : 'translate-x-full'} flex flex-col`}>
-            <div className="p-8 border-b border-gray-100 flex justify-between items-center bg-white sticky top-0 z-10">
-              <div className="flex items-center gap-4">
-                <div className="bg-[#E0F2F1] p-3 rounded-2xl text-[#006F8E]">
-                  <ShoppingBag size={28} />
-                </div>
-                <h2 className="text-3xl font-black tracking-tighter uppercase">Torch Store</h2>
+        {/* Drop Button */}
+        <div className="absolute bottom-8 left-0 right-0 z-[1000] flex justify-center pointer-events-none">
+          <button 
+            onClick={() => {
+              const center = mapInstance.current?.getCenter();
+              if (center) dropTorch(center.lat, center.lng);
+            }}
+            className="pulse-btn pointer-events-auto bg-[#006F8E] text-white px-10 py-5 rounded-full font-black text-lg shadow-2xl flex items-center gap-3 active:scale-95 transition-all"
+          >
+            📍 DROP TORCH
+          </button>
+        </div>
+      </div>
+
+      {/* Main Stats Area */}
+      <div className="flex-1 p-6 space-y-8 -mt-6 bg-white rounded-t-[40px] relative z-[1001] shadow-2xl border-t border-gray-50">
+        {/* Stats Row */}
+        <div className="grid grid-cols-2 gap-4">
+          <div className="bg-teal-50 p-6 rounded-[32px] flex items-center gap-4">
+            <div className="bg-[#006F8E] text-white p-4 rounded-2xl shadow-lg shadow-teal-700/20"><Flame size={24} /></div>
+            <div>
+              <p className="text-[10px] font-black text-teal-600 uppercase tracking-widest">Streak</p>
+              <p className="text-2xl font-black">{user.streak}</p>
+            </div>
+          </div>
+          <div className="bg-orange-50 p-6 rounded-[32px] flex items-center gap-4">
+            <div className="bg-orange-500 text-white p-4 rounded-2xl shadow-lg shadow-orange-700/20"><Trophy size={24} /></div>
+            <div>
+              <p className="text-[10px] font-black text-orange-600 uppercase tracking-widest">Distance</p>
+              <p className="text-2xl font-black">{user.totalKm} <span className="text-sm">KM</span></p>
+            </div>
+          </div>
+        </div>
+
+        {/* Mascot Greeting */}
+        <div className="bg-gray-50 p-6 rounded-[32px] flex items-center gap-6 border border-gray-100">
+          <img src={mascotUrl} className="h-16" alt="Buddy" />
+          <div className="space-y-1">
+            <p className="text-[10px] font-black uppercase text-[#006F8E] tracking-widest flex items-center gap-2">
+              <MessageSquare size={12} /> Buddy Torch
+            </p>
+            <p className="font-bold text-gray-700 leading-tight">"Sobat {user.name.split(' ')[0]}, ayo gas terus petualanganmu hari ini!"</p>
+          </div>
+        </div>
+
+        {/* Reward Progress Card */}
+        <div className="bg-gradient-to-br from-[#006F8E] to-teal-800 rounded-[40px] p-8 text-white relative overflow-hidden shadow-2xl shadow-teal-900/20">
+          <div className="relative z-10 space-y-4">
+            <div className="flex justify-between items-end">
+              <div>
+                <h4 className="text-2xl font-black leading-none uppercase italic">Misi Mingguan</h4>
+                <p className="text-xs opacity-70 mt-1 font-bold">Klaim Voucher Diskon 20%</p>
               </div>
-              <button onClick={() => setIsGearDrawerOpen(false)} className="p-2 text-gray-400 hover:text-black transition-colors">
+              <Sparkles className="text-teal-300" />
+            </div>
+            <div className="space-y-2">
+              <div className="flex justify-between text-[10px] font-black uppercase tracking-widest opacity-80">
+                <span>Progress</span>
+                <span>{user.totalKm} / 500 KM</span>
+              </div>
+              <div className="w-full h-3 bg-white/20 rounded-full overflow-hidden">
+                <div 
+                  className="h-full bg-white rounded-full transition-all duration-1000" 
+                  style={{ width: `${Math.min((user.totalKm / 500) * 100, 100)}%` }} 
+                />
+              </div>
+            </div>
+          </div>
+          <div className="absolute -bottom-10 -right-10 opacity-10 rotate-12 scale-150">
+            <Trophy size={180} />
+          </div>
+        </div>
+
+        {/* Global Rankings */}
+        <div className="space-y-4">
+          <h3 className="text-xl font-black tracking-tight uppercase px-2">Global Explorers</h3>
+          <div className="space-y-3">
+            {MOCK_LEADERBOARD.map((entry, idx) => (
+              <div key={idx} className="flex items-center justify-between p-5 bg-white border border-gray-100 rounded-3xl group hover:border-[#006F8E] transition-all">
+                <div className="flex items-center gap-4">
+                  <span className="w-8 font-black text-gray-300 group-hover:text-[#006F8E]">{idx + 1}</span>
+                  <div>
+                    <p className="font-black text-gray-900">{entry.name}</p>
+                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{entry.category}</p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className="font-black text-lg">{entry.km} <span className="text-[10px] text-gray-400">KM</span></p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+        
+        <div className="h-20" /> {/* Spacer for bottom bar */}
+      </div>
+
+      {/* Bottom Sticky Nav */}
+      <div className="fixed bottom-0 left-0 right-0 bg-white/80 backdrop-blur-xl border-t border-gray-100 p-6 flex justify-around items-center z-[5000]">
+        <button className="text-[#006F8E] p-4 bg-teal-50 rounded-2xl shadow-xl ring-4 ring-teal-50/50 scale-110">
+          <MapIcon size={28} />
+        </button>
+        <button 
+          onClick={() => setIsStoreOpen(true)}
+          className="text-gray-300 p-4 hover:text-[#006F8E] transition-colors"
+        >
+          <ShoppingBag size={28} />
+        </button>
+      </div>
+
+      {/* Store Drawer (Side Menu) */}
+      {isStoreOpen && (
+        <div className="fixed inset-0 z-[6000] flex justify-end">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm transition-opacity" onClick={() => setIsStoreOpen(false)} />
+          <div className="relative w-full max-w-sm bg-white h-full shadow-2xl p-8 flex flex-col animate-slide-left">
+            <div className="flex justify-between items-center mb-10">
+              <h2 className="text-3xl font-black uppercase tracking-tighter italic">Torch Gear</h2>
+              <button onClick={() => setIsStoreOpen(false)} className="p-2 text-gray-300 hover:text-black transition-colors">
                 <X size={32} />
               </button>
             </div>
-
-            <div className="flex-1 overflow-y-auto">
-              <div className="w-full h-72 overflow-hidden relative">
-                <img 
-                  src="https://images.unsplash.com/photo-1533240332313-0db49b459ad6?q=80&w=1974&auto=format&fit=crop" 
-                  className="w-full h-full object-cover" 
-                  alt="Torch Lifestyle"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-[#006F8E]/90 via-transparent to-transparent flex items-end p-8">
-                  <div>
-                    <p className="text-white font-black text-3xl tracking-tighter leading-none mb-1 uppercase">EXPLORE WITH BUDDY</p>
-                    <p className="text-blue-100 text-[10px] font-black uppercase tracking-[0.3em]">#TorchAdventureID</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="p-8 space-y-12">
-                <section>
-                  <h3 className="text-xs font-black text-gray-400 uppercase tracking-[0.2em] mb-8">Gear Aktif</h3>
-                  <div className="bg-white rounded-[48px] p-10 border-2 border-gray-50 shadow-2xl relative overflow-hidden group">
-                    <div className="aspect-square bg-gray-50 rounded-[32px] overflow-hidden mb-8 flex items-center justify-center p-6">
-                      <img 
-                        src="https://torch.id/cdn/shop/products/Kashiwa_Grey_1_800x.jpg?v=1655716186" 
-                        alt="Kashiwa Grey"
-                        className="w-full h-full object-contain group-hover:scale-110 transition-transform duration-700"
-                      />
-                    </div>
-                    <div className="text-center">
-                      <h3 className="font-black text-gray-900 leading-tight mb-8 text-2xl tracking-tighter">Kashiwa Foldable 19L</h3>
-                      <a 
-                        href="https://torch.id/collections/backpack" 
-                        target="_blank" 
-                        className="w-full bg-[#006F8E] text-white text-center py-5 rounded-[24px] font-black text-sm block uppercase tracking-[0.2em] shadow-xl"
-                      >
-                        Beli Koleksi Lain <ExternalLink size={18} className="inline ml-2 mb-1" />
-                      </a>
-                    </div>
-                  </div>
-                </section>
-
-                <section>
-                  <h3 className="text-xs font-black text-gray-400 uppercase tracking-[0.2em] mb-6">Explore Koleksi</h3>
-                  <div className="grid grid-cols-1 gap-4">
-                    {PRODUCT_COLLECTIONS.map((collection) => (
-                      <a
-                        key={collection}
-                        href={`https://torch.id/search?q=${collection}`}
-                        target="_blank"
-                        className="p-6 bg-white border border-gray-100 rounded-[32px] flex justify-between items-center group hover:border-[#006F8E] hover:bg-blue-50/50 transition-all"
-                      >
-                        <span className="font-black text-lg text-gray-700 tracking-tight">{collection}</span>
-                        <ChevronRight size={20} className="text-gray-300 group-hover:text-[#006F8E]" />
-                      </a>
-                    ))}
-                  </div>
-                </section>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Dashboard Content */}
-        <div className="flex-1 p-6 md:p-10 -mt-10 relative z-[2000]">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
             
-            {/* Left Column: Mascot & Stats */}
-            <div className="lg:col-span-1 space-y-10">
-              <div className="flex flex-col items-center">
-                <div className="relative mb-4 w-full flex flex-col items-center">
-                  <div className="bg-white p-6 rounded-[32px] rounded-bl-none shadow-2xl border-4 border-[#006F8E] text-[#006F8E] font-black text-sm mb-4 max-w-[90%] relative animate-fade-in">
-                    <div className="flex items-start gap-2">
-                      <MessageSquare size={18} className="shrink-0 mt-0.5" />
-                      <p className="leading-relaxed">"{buddyMessage}"</p>
-                    </div>
-                  </div>
-                  <img 
-                    src="https://images.squarespace-cdn.com/content/v1/5b329486360810168343e06a/1592398687498-Y8U1S7T8U1S7T8U1S7T8/Mascot_Final_01.png" 
-                    alt="Buddy" 
-                    className="h-56 drop-shadow-[0_25px_25px_rgba(0,111,142,0.3)] hover:scale-105 transition-transform duration-500 cursor-pointer"
-                    onClick={() => setBuddyMessage("Ayo kita berkeliling lagi!")}
-                  />
+            <div className="flex-1 overflow-y-auto space-y-10 pr-2">
+              <div className="bg-gray-50 p-8 rounded-[40px] text-center space-y-6 border border-gray-100">
+                <img src={user.currentProduct.image} alt="Bag" className="w-48 mx-auto drop-shadow-2xl" />
+                <div className="space-y-1">
+                  <p className="text-[10px] font-black uppercase text-gray-400 tracking-widest">Gear Terpakai</p>
+                  <p className="text-xl font-black leading-tight text-gray-900">{user.currentProduct.name}</p>
                 </div>
+                <button className="w-full py-4 bg-[#006F8E] text-white rounded-2xl font-black text-sm uppercase tracking-widest shadow-xl shadow-teal-900/10">Beli Baru</button>
               </div>
 
-              <div className="bg-white rounded-[48px] p-10 shadow-2xl border border-gray-50">
-                <h2 className="text-3xl font-black tracking-tighter mb-10">Statistik Saya</h2>
-                <div className="space-y-6">
-                  <div className="p-10 rounded-[40px] bg-[#E0F2F1]/50 border-2 border-[#006F8E] shadow-xl">
-                    <div className="flex items-center gap-6">
-                      <div className="p-6 bg-[#006F8E] text-white rounded-[24px]">
-                        <Flame size={40} />
-                      </div>
-                      <div>
-                        <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Streak Hari</p>
-                        <p className="text-4xl font-black">{userStats.streak}</p>
-                      </div>
-                    </div>
+              <div className="space-y-4">
+                <p className="text-[10px] font-black uppercase text-gray-400 tracking-widest px-2">Koleksi Pilihan</p>
+                {['Backpack', 'Travel Bag', 'Messenger Bag', 'Sling Bag'].map(item => (
+                  <div key={item} className="flex justify-between items-center p-6 bg-white border border-gray-100 rounded-3xl hover:border-[#006F8E] group cursor-pointer transition-all">
+                    <span className="font-bold text-gray-700 group-hover:text-[#006F8E]">{item}</span>
+                    <ChevronRight size={18} className="text-gray-300 group-hover:text-[#006F8E] group-hover:translate-x-1 transition-all" />
                   </div>
-                  <div className="p-10 rounded-[40px] bg-gray-50 border border-gray-100">
-                    <div className="flex items-center gap-6">
-                      <div className="p-6 bg-gray-200 rounded-[24px] text-gray-500">
-                        <Trophy size={40} />
-                      </div>
-                      <div>
-                        <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Total Jarak</p>
-                        <p className="text-4xl font-black">{userStats.totalKm} KM</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                ))}
               </div>
             </div>
-
-            {/* Right Column: Leaderboard */}
-            <div className="lg:col-span-2">
-              <div className="bg-white rounded-[48px] p-10 shadow-2xl border border-gray-50 h-full">
-                <div className="flex items-center justify-between mb-12">
-                  <h2 className="text-4xl font-black tracking-tighter uppercase">Leaderboard</h2>
-                  <Sparkles size={32} className="text-[#006F8E]" />
-                </div>
-                <div className="space-y-6">
-                  {sortedLeaderboard.map((entry) => {
-                    const isUser = entry.name === userStats.name;
-                    return (
-                      <div 
-                        key={entry.name}
-                        className={`p-8 rounded-[40px] border-2 flex items-center gap-8 transition-all ${
-                          isUser ? 'border-[#006F8E] bg-[#E0F2F1]/30 ring-8 ring-[#E0F2F1]/40 shadow-xl' : 'border-gray-50 bg-white hover:border-gray-200'
-                        }`}
-                      >
-                        <div className={`w-14 h-14 rounded-[22px] flex items-center justify-center font-black text-2xl ${
-                          entry.rank === 1 ? 'bg-yellow-400 text-white' : 'bg-gray-50 text-gray-400'
-                        }`}>
-                          {entry.rank}
-                        </div>
-                        <div className="flex-1">
-                          <p className="font-black text-2xl tracking-tighter">{entry.name}</p>
-                          <p className="text-[10px] font-black text-gray-400 uppercase mt-1">{entry.category}</p>
-                        </div>
-                        <div className="text-right">
-                          <p className="font-black text-2xl">{entry.km.toLocaleString()} KM</p>
-                          <p className="text-[10px] font-black text-gray-400 mt-1">{entry.streak} DAYS</p>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
+            
+            <div className="mt-8 pt-6 border-t border-gray-100 text-center">
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Official Torch Website</p>
+              <a href="https://torch.id" target="_blank" className="text-[#006F8E] font-black text-sm">www.torch.id</a>
             </div>
           </div>
         </div>
-
-        {/* Bottom Bar */}
-        <div className="bg-white border-t border-gray-100 p-8 flex justify-around items-center sticky bottom-0 z-[3000]">
-          <button className="text-[#006F8E] p-5 bg-[#E0F2F1] rounded-[32px] shadow-lg">
-            <MapIcon size={32} />
-          </button>
-          <button className="text-gray-300 p-5"><Users size={32} /></button>
-          <button className="text-gray-300 p-5"><Settings size={32} /></button>
-        </div>
-      </div>
+      )}
     </div>
   );
 };

@@ -11,63 +11,73 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     
     <!-- Leaflet CSS -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     
     <style>
       body {
         font-family: 'Inter', sans-serif;
-        background-color: #ffffff;
+        background-color: #f9fafb;
         margin: 0;
         padding: 0;
+        overflow-x: hidden;
       }
-      .torch-blue { background-color: #1D4ED8; }
-      .torch-blue-text { color: #1D4ED8; }
-      .torch-blue-border { border-color: #1D4ED8; }
-
-      /* Custom Leaflet overrides to match Torch Blue style */
+      #root:empty::before {
+        content: 'Memuat Torch Adventure...';
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        font-weight: 800;
+        color: #006F8E;
+      }
       .leaflet-container {
-        background: #f8f9fa !important;
-      }
-      .leaflet-control-zoom {
-        border: none !important;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.1) !important;
-      }
-      .leaflet-control-zoom-in, .leaflet-control-zoom-out {
-        border-radius: 8px !important;
-        margin-bottom: 4px;
-        color: #1D4ED8 !important;
-      }
-      .leaflet-bar a {
-        background-color: white !important;
-        border: none !important;
+        background: #f0f4f8 !important;
       }
       .custom-div-icon {
         background: none;
         border: none;
       }
-
-      @keyframes pulse-blue {
-        0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(29, 78, 216, 0.4); }
-        70% { transform: scale(1.05); box-shadow: 0 0 0 10px rgba(29, 78, 216, 0); }
-        100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(29, 78, 216, 0); }
+      @keyframes pulse {
+        0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(0, 111, 142, 0.4); }
+        70% { transform: scale(1.05); box-shadow: 0 0 0 10px rgba(0, 111, 142, 0); }
+        100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(0, 111, 142, 0); }
       }
-      .pulse-button {
-        animation: pulse-blue 2s infinite;
+      .pulse-btn {
+        animation: pulse 2s infinite;
+      }
+      /* Custom scrollbar for premium feel */
+      ::-webkit-scrollbar { width: 4px; }
+      ::-webkit-scrollbar-track { background: transparent; }
+      ::-webkit-scrollbar-thumb { background: #006F8E33; border-radius: 10px; }
+      
+      /* Animation classes */
+      .animate-fade-in { animation: fadeIn 0.5s ease-out; }
+      @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+      .animate-slide-left { animation: slideLeft 0.3s ease-out; }
+      @keyframes slideLeft {
+        from { transform: translateX(100%); }
+        to { transform: translateX(0); }
       }
     </style>
     <script type="importmap">
-    {
-      "imports": {
-        "react": "https://esm.sh/react@^18.2.0",
-        "react-dom/": "https://esm.sh/react-dom@^18.2.0/",
-        "react/": "https://esm.sh/react@^18.2.0/",
-        "lucide-react": "https://esm.sh/lucide-react@^0.263.1",
-        "leaflet": "https://esm.sh/leaflet@1.9.4"
-      }
-    }
-    </script>
+{
+  "imports": {
+    "react": "https://esm.sh/react@18.2.0",
+    "react/": "https://esm.sh/react@18.2.0/",
+    "react-dom": "https://esm.sh/react-dom@18.2.0",
+    "react-dom/": "https://esm.sh/react-dom@18.2.0/",
+    "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
+    "lucide-react": "https://esm.sh/lucide-react@0.447.0?external=react,react-dom",
+    "leaflet": "https://esm.sh/leaflet@1.9.4"
+  }
+}
+</script>
   </head>
-  <body class="bg-white">
+  <body>
     <div id="root"></div>
+    <script type="module" src="index.tsx"></script>
   </body>
 </html>
